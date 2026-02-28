@@ -1,9 +1,10 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Cosmic Photo Wall</title>
+  <link rel="icon" href="data:," />
   <style>
     :root{
       --bg0:#05060a;
@@ -200,7 +201,7 @@
   <canvas id="bg"></canvas>
   <canvas id="fx"></canvas>
   <div class="hint">
-    Drag to steer flow • Hold click for burst • <kbd>M</kbd> mode • <kbd>N</kbd> music • <kbd>Click card</kbd> preview • <kbd>Space</kbd> hearts • <kbd>R</kbd> shuffle
+    Drag to steer flow Ã¢â‚¬Â¢ Hold click for burst Ã¢â‚¬Â¢ <kbd>M</kbd> mode Ã¢â‚¬Â¢ <kbd>N</kbd> music Ã¢â‚¬Â¢ <kbd>Click card</kbd> preview Ã¢â‚¬Â¢ <kbd>Space</kbd> hearts Ã¢â‚¬Â¢ <kbd>R</kbd> shuffle
   </div>
 
   <div class="hud">
@@ -229,8 +230,32 @@
   // Config
   // =========================
   const IMAGE_FILE_FALLBACK = [
-    "01.jpg","02.jpg","03.jpg","04.jpg","05.jpg","06.jpg",
-    "07.jpg","08.jpg","09.jpg","10.jpg","11.jpg","12.jpg"
+    "29fc01acd89b1ac67a71f0e612f2dc3c.jpeg",
+    "3074383e64a40dace64715f1c31a0528.jpeg",
+    "36d0b2837de2d8f2bf312eb2e85e16aa.jpeg",
+    "839f24cb0b4de213c1eb7a918e5506af.jpeg",
+    "844ec3c27cad21eb4c2692e4c136866d.jpeg",
+    "92e5b33e2bffc727daa58513005ccffa.jpeg",
+    "99077916e03a4e5cbfc1df5c2f54691e.jpeg",
+    "a0cc90cbdacc0f324708617031577410.jpeg",
+    "att.1P-mCZHPTxCzzJQjtb-gZP_irxy_DY5EAoQQTILK6zw.jpg",
+    "att.911ANFli7z6C-byS7c6Le88iv3UjXhBdrKhM60WG31s.jpg",
+    "att.bHE1t233rlgVsrw0F52bMLKFzn4-oNBQh_di8Ze-WRE.jpg",
+    "att.cCD4PBQkvCmkw4olRAqq8Z4WqkpKPMhIZrPAiUFQSYI.jpg",
+    "att.gUI4dTDbhNQrAKZoNUEWSrCga0zOPxQJhyTHpJH-Rco.jpg",
+    "att.LNfQxyIhM_NukY7ex__qMg4J1x5DMeoxTIHyDcXoSU8.jpg",
+    "att.utv02Ez3Js_PFgVBNBgDVVpEY2XScENREvMQ8vzn7ww.jpg",
+    "att.v4smV0IKKMnRQVGmNbQPO1cpD69PJrA291w9lcGCYrw.jpg",
+    "att.WF4zUraCaBhvsrsR8hlLXROSRgi4uLyZlCIAaCbxOTQ.jpg",
+    "bbc4dfef4e1a63879b36ce8a11709395.jpeg",
+    "ce960c22ca789b3de1a381881635b508.jpeg",
+    "dcb9c5d2c49e7b031d870c61bc9cb162.jpeg",
+    "IMG_1097.JPG",
+    "IMG_1102.JPG",
+    "IMG_1108.JPG",
+    "IMG_1111.JPG",
+    "IMG_1112.JPG",
+    "IMG_1114.JPG"
   ];
   const IMAGE_BASE = "images/";
   const IMAGE_EXTENSIONS = new Set([".jpg",".jpeg",".png",".webp",".gif",".avif",".bmp",".svg"]);
@@ -276,6 +301,10 @@
   const AUDIO_BASE = "audio/";
   const AUDIO_EXTENSIONS = new Set([".mp3",".wav",".ogg",".m4a",".aac",".flac",".webm"]);
   const AUDIO_FILE_FALLBACK = AUDIO_BASE + "music.mp3";
+  const MUSIC_FILE_TARGET_VOLUME = 0.99;
+  const MUSIC_SYNTH_TARGET_GAIN = 0.24;
+  const MUSIC_PAD_BASE_GAIN = 0.56;
+  const MUSIC_NOISE_BASE_GAIN = 0.016;
 
   const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   const CAMERA = { fov: 860, near: 70, far: 3200 };
@@ -428,38 +457,11 @@
     }
   }
 
-  async function listImagesFromDirectory(){
-    try {
-      const res = await fetch(IMAGE_BASE, {cache: "no-store"});
-      if (!res.ok) return [];
-      const type = (res.headers.get("content-type") || "").toLowerCase();
-      if (!type.includes("text/html")) return [];
-
-      const html = await res.text();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const baseUrl = res.url || window.location.href;
-      const list = [];
-      for (const link of doc.querySelectorAll("a[href]")){
-        const href = (link.getAttribute("href") || "").trim();
-        if (!href || href.endsWith("/")) continue;
-        const abs = new URL(href, baseUrl).href;
-        if (!hasImageExtension(abs)) continue;
-        list.push(abs);
-      }
-      return dedupeList(list);
-    } catch {
-      return [];
-    }
-  }
-
   async function discoverImageSources(){
     const fromManifest = await listImagesFromManifest();
     if (fromManifest.length) return fromManifest;
 
-    const fromDirectory = await listImagesFromDirectory();
-    if (fromDirectory.length) return fromDirectory;
-
-    console.warn("[Photo Wall] Auto-scan images/ not available, using fallback list.");
+    console.warn("[Photo Wall] images/manifest.json not found, using fallback list.");
     return IMAGE_FILE_FALLBACK.map((name) => IMAGE_BASE + name);
   }
 
@@ -1026,7 +1028,7 @@
     padHigh.Q.value = 0.4;
 
     musicPadGain = audioCtx.createGain();
-    musicPadGain.gain.value = 0.42;
+    musicPadGain.gain.value = MUSIC_PAD_BASE_GAIN;
 
     musicMaster = audioCtx.createGain();
     musicMaster.gain.value = 0;
@@ -1068,7 +1070,7 @@
     noiseHigh.type = "highpass";
     noiseHigh.frequency.value = 180;
     const noiseGain = audioCtx.createGain();
-    noiseGain.gain.value = 0.011;
+    noiseGain.gain.value = MUSIC_NOISE_BASE_GAIN;
     musicNoiseSource.connect(noiseLow);
     noiseLow.connect(noiseHigh);
     noiseHigh.connect(noiseGain);
@@ -1112,7 +1114,7 @@
     if (fileReady && musicEl){
       try {
         if (musicEl.paused) await musicEl.play();
-        fadeMediaVolume(musicEl, 0.24, 900);
+        fadeMediaVolume(musicEl, MUSIC_FILE_TARGET_VOLUME, 900);
         if (audioCtx && musicMaster){
           const t = audioCtx.currentTime;
           musicMaster.gain.cancelScheduledValues(t);
@@ -1137,7 +1139,7 @@
     const t = audioCtx.currentTime;
     musicMaster.gain.cancelScheduledValues(t);
     musicMaster.gain.setValueAtTime(musicMaster.gain.value, t);
-    musicMaster.gain.linearRampToValueAtTime(0.15, t + 1.2);
+    musicMaster.gain.linearRampToValueAtTime(MUSIC_SYNTH_TARGET_GAIN, t + 1.2);
   }
 
   function updateMusic(dt){
@@ -1409,4 +1411,6 @@
 </script>
 </body>
 </html>
+
+
 
