@@ -1,0 +1,1412 @@
+﻿<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cosmic Photo Wall</title>
+  <style>
+    :root{
+      --bg0:#05060a;
+      --bg1:#070a14;
+      --glass: rgba(255,255,255,.08);
+      --stroke: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.9);
+      --muted: rgba(255,255,255,.65);
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; background: radial-gradient(1200px 700px at 30% 20%, #141a3a 0%, var(--bg1) 35%, var(--bg0) 100%); overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    canvas{ position:fixed; inset:0; width:100%; height:100%; display:block; }
+    #fx{ cursor:default; }
+
+    /* HUD / UI */
+    .hud{
+      position:fixed;
+      left:16px; right:16px; bottom:16px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px;
+      pointer-events:none;
+    }
+    .panel{
+      pointer-events:auto;
+      display:flex; align-items:center; gap:12px;
+      padding:12px 14px;
+      border-radius:16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+      border:1px solid var(--stroke);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      color: var(--text);
+      min-width:min(560px, 100%);
+    }
+    .dots{ display:flex; gap:8px; }
+    .dot{ width:12px; height:12px; border-radius:999px; }
+    .dot.red{ background:#ff5f57; }
+    .dot.yellow{ background:#febc2e; }
+    .dot.green{ background:#28c840; }
+    .title{
+      display:flex; flex-direction:column; gap:2px; min-width:0;
+    }
+    .title b{ font-size:14px; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .title span{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .controls{
+      pointer-events:auto;
+      display:flex; gap:10px; align-items:center; justify-content:flex-end;
+      padding:10px 12px;
+      border-radius:16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+      border:1px solid var(--stroke);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      color: var(--text);
+    }
+    .btn{
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      padding:9px 12px;
+      border-radius:12px;
+      font-weight:600;
+      font-size:12px;
+      transition: transform .08s ease, background .15s ease;
+    }
+    .btn:hover{ background: rgba(255,255,255,.12); }
+    .btn:active{ transform: scale(.98); }
+    .btn.secondary{ font-weight:700; opacity:.9; }
+    .hint{
+      position:fixed;
+      top:14px; left:50%; transform:translateX(-50%);
+      padding:10px 12px;
+      border-radius:14px;
+      background: rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.14);
+      color: rgba(255,255,255,.82);
+      font-size:12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    }
+    .hint kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
+      font-size:11px;
+      padding:2px 6px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.9);
+      margin: 0 4px;
+    }
+    .preview{
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .28s ease;
+      z-index: 30;
+    }
+    .preview.open{
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .preview-backdrop{
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(12px);
+      background:
+        radial-gradient(70% 65% at 50% 35%, rgba(39,68,130,.42) 0%, rgba(8,10,20,.62) 52%, rgba(2,2,8,.8) 100%),
+        rgba(4,6,12,.42);
+    }
+    .preview-dialog{
+      position: relative;
+      width: min(88vw, 930px);
+      border-radius: 28px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: linear-gradient(165deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+      box-shadow: 0 38px 120px rgba(0,0,0,.58);
+      transform: translateY(14px) scale(.93);
+      transition: transform .32s cubic-bezier(.22,.86,.34,1);
+      overflow: hidden;
+    }
+    .preview.open .preview-dialog{
+      transform: translateY(0) scale(1);
+    }
+    .preview-glow{
+      position: absolute;
+      inset: -24% -8% auto -8%;
+      height: 56%;
+      background: radial-gradient(55% 65% at 50% 25%, rgba(140,184,255,.34), rgba(86,120,255,.08) 55%, rgba(0,0,0,0) 80%);
+      pointer-events: none;
+    }
+    .preview img{
+      position: relative;
+      display: block;
+      width: 100%;
+      max-height: min(72vh, 760px);
+      object-fit: contain;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.24);
+      background: rgba(6,8,16,.86);
+    }
+    .preview-meta{
+      position: relative;
+      margin-top: 10px;
+      padding: 0 4px 2px;
+      color: rgba(255,255,255,.82);
+      font-size: 13px;
+      letter-spacing: .22px;
+      text-align: center;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+    }
+    .preview-close{
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(255,255,255,.26);
+      border-radius: 999px;
+      color: rgba(255,255,255,.92);
+      background: rgba(0,0,0,.24);
+      backdrop-filter: blur(8px);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 2;
+      transition: transform .16s ease, background .16s ease;
+    }
+    .preview-close:hover{
+      transform: scale(1.08);
+      background: rgba(0,0,0,.34);
+    }
+    .preview-close:active{
+      transform: scale(.95);
+    }
+    @media (max-width: 720px){
+      .preview-dialog{
+        width: min(94vw, 930px);
+        border-radius: 22px;
+        padding: 12px;
+      }
+      .preview img{
+        max-height: 66vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="fx"></canvas>
+  <div class="hint">
+    Drag to steer flow • Hold click for burst • <kbd>M</kbd> mode • <kbd>N</kbd> music • <kbd>Click card</kbd> preview • <kbd>Space</kbd> hearts • <kbd>R</kbd> shuffle
+  </div>
+
+  <div class="hud">
+
+    <div class="controls">
+      <button class="btn secondary" id="toggleHearts">Hearts: ON</button>
+      <button class="btn" id="toggleMusic">Music: OFF</button>
+      <button class="btn" id="toggleMode">Mode: 3D</button>
+      <button class="btn" id="shuffle">Shuffle</button>
+    </div>
+  </div>
+
+  <div class="preview" id="preview" aria-hidden="true">
+    <div class="preview-backdrop" data-close-preview></div>
+    <div class="preview-dialog" role="dialog" aria-modal="true" aria-label="Image preview">
+      <button class="preview-close" id="closePreview" aria-label="Close preview">&times;</button>
+      <div class="preview-glow"></div>
+      <img id="previewImage" alt="Selected image preview" />
+      <div class="preview-meta" id="previewMeta"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // =========================
+  // Config
+  // =========================
+  const IMAGE_FILE_FALLBACK = [
+    "01.jpg","02.jpg","03.jpg","04.jpg","05.jpg","06.jpg",
+    "07.jpg","08.jpg","09.jpg","10.jpg","11.jpg","12.jpg"
+  ];
+  const IMAGE_BASE = "images/";
+  const IMAGE_EXTENSIONS = new Set([".jpg",".jpeg",".png",".webp",".gif",".avif",".bmp",".svg"]);
+  const ICON_HEART_ON = "\u2764\uFE0F";
+  const ICON_HEART_OFF = "\uD83D\uDDA4";
+  const EMOJIS = [
+    "\u2764\uFE0F",
+    "\uD83D\uDC96",
+    "\uD83D\uDC97",
+    "\u2728",
+    "\uD83C\uDF38",
+    "\uD83C\uDF1F",
+    "\uD83E\uDE90",
+    "\uD83D\uDCAB"
+  ];
+
+  // =========================
+  // Canvas setup
+  // =========================
+  const bg = document.getElementById("bg");
+  const fx = document.getElementById("fx");
+  const bctx = bg.getContext("2d");
+  const fctx = fx.getContext("2d");
+  const preview = document.getElementById("preview");
+  const previewImage = document.getElementById("previewImage");
+  const previewMeta = document.getElementById("previewMeta");
+  const closePreview = document.getElementById("closePreview");
+  const btnMusic = document.getElementById("toggleMusic");
+  const btnMode = document.getElementById("toggleMode");
+  let previewOpen = false;
+  let mode3D = true;
+  let musicOn = false;
+  let musicTrackSrc = "";
+  let musicEl = null;
+  let audioCtx = null;
+  let musicMaster = null;
+  let musicPadGain = null;
+  let musicFreqNodes = [];
+  let musicNoiseSource = null;
+  let musicLfo = null;
+  let musicLfoGain = null;
+  let musicStepTimer = 0;
+  const AUDIO_BASE = "audio/";
+  const AUDIO_EXTENSIONS = new Set([".mp3",".wav",".ogg",".m4a",".aac",".flac",".webm"]);
+  const AUDIO_FILE_FALLBACK = AUDIO_BASE + "music.mp3";
+
+  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const CAMERA = { fov: 860, near: 70, far: 3200 };
+  let W=0, H=0;
+
+  function resize(){
+    W = Math.floor(window.innerWidth);
+    H = Math.floor(window.innerHeight);
+    for (const c of [bg, fx]) {
+      c.width = Math.floor(W * DPR);
+      c.height = Math.floor(H * DPR);
+      c.style.width = W + "px";
+      c.style.height = H + "px";
+      const ctx = c.getContext("2d");
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+    }
+  }
+  window.addEventListener("resize", resize, {passive:true});
+  resize();
+
+  // =========================
+  // Starfield (bg canvas)
+  // =========================
+  const stars = [];
+  const STAR_COUNT = Math.floor((W*H) / 9000); // auto density
+
+  function rand(min,max){ return Math.random()*(max-min)+min; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  function initStars() {
+    stars.length = 0;
+    const n = Math.max(120, STAR_COUNT);
+    for (let i=0;i<n;i++){
+      stars.push({
+        x: Math.random()*W,
+        y: Math.random()*H,
+        z: Math.random(),      // depth 0..1
+        r: rand(0.6, 2.2),
+        tw: rand(0, Math.PI*2),
+        s: rand(0.15, 0.7),    // speed factor
+      });
+    }
+  }
+  initStars();
+
+  function drawBg(t, mx, my){
+    // background gradient
+    const g = bctx.createRadialGradient(W*0.35, H*0.25, 0, W*0.45, H*0.35, Math.max(W,H));
+    g.addColorStop(0, "#161b45");
+    g.addColorStop(0.35, "#090b18");
+    g.addColorStop(1, "#05060a");
+    bctx.fillStyle = g;
+    bctx.fillRect(0,0,W,H);
+
+    // subtle nebula noise blobs
+    for (let i=0;i<4;i++){
+      const nx = W*(0.15 + i*0.25) + (mx-0.5)*40;
+      const ny = H*(0.22 + i*0.12) + (my-0.5)*30;
+      const r = Math.max(W,H) * (0.25 + i*0.06);
+      const ng = bctx.createRadialGradient(nx, ny, 0, nx, ny, r);
+      ng.addColorStop(0, `rgba(140,180,255,0.06)`);
+      ng.addColorStop(1, `rgba(0,0,0,0)`);
+      bctx.fillStyle = ng;
+      bctx.beginPath();
+      bctx.arc(nx, ny, r, 0, Math.PI*2);
+      bctx.fill();
+    }
+
+    // stars
+    for (const s of stars){
+      const par = (1 - s.z);
+      const px = s.x + (mx-0.5) * 60 * par;
+      const py = s.y + (my-0.5) * 45 * par;
+
+      s.tw += 0.015 * s.s;
+      const twinkle = 0.65 + 0.35*Math.sin(s.tw);
+
+      const alpha = (0.25 + 0.75*par) * twinkle;
+      bctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      bctx.beginPath();
+      bctx.arc(px, py, s.r*(0.7+par), 0, Math.PI*2);
+      bctx.fill();
+    }
+
+    // slow drift
+    for (const s of stars){
+      s.y += 0.06 + 0.18*s.s;
+      if (s.y > H+10) { s.y = -10; s.x = Math.random()*W; }
+    }
+  }
+
+  // =========================
+  // Floating photo cards (fx canvas)
+  // =========================
+  const images = [];
+  const sprites = [];
+  const shockwaves = [];
+  let assetsReady = false;
+
+  function hasImageExtension(path){
+    const clean = path.split("#")[0].split("?")[0].toLowerCase();
+    for (const ext of IMAGE_EXTENSIONS){
+      if (clean.endsWith(ext)) return true;
+    }
+    return false;
+  }
+
+  function getFileNameFromPath(path){
+    try {
+      const url = new URL(path, window.location.href);
+      const name = url.pathname.split("/").pop() || "image";
+      return decodeURIComponent(name);
+    } catch {
+      const clean = path.split("#")[0].split("?")[0];
+      return clean.split("/").pop() || clean.split("\\").pop() || "image";
+    }
+  }
+
+  function dedupeList(list){
+    const out = [];
+    const seen = new Set();
+    for (const item of list){
+      const key = item.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+    return out;
+  }
+
+  function normalizeImageSource(value){
+    if (typeof value !== "string") return null;
+    const raw = value.trim();
+    if (!raw || !hasImageExtension(raw)) return null;
+
+    if (/^(https?:)?\/\//i.test(raw) || raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
+    if (raw.startsWith("/") || raw.startsWith("./") || raw.startsWith("../") || raw.startsWith(IMAGE_BASE)) return raw;
+    return IMAGE_BASE + raw;
+  }
+
+  async function listImagesFromManifest(){
+    try {
+      const res = await fetch(IMAGE_BASE + "manifest.json", {cache: "no-store"});
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data)) return [];
+      return dedupeList(data.map(normalizeImageSource).filter(Boolean));
+    } catch {
+      return [];
+    }
+  }
+
+  async function listImagesFromDirectory(){
+    try {
+      const res = await fetch(IMAGE_BASE, {cache: "no-store"});
+      if (!res.ok) return [];
+      const type = (res.headers.get("content-type") || "").toLowerCase();
+      if (!type.includes("text/html")) return [];
+
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const baseUrl = res.url || window.location.href;
+      const list = [];
+      for (const link of doc.querySelectorAll("a[href]")){
+        const href = (link.getAttribute("href") || "").trim();
+        if (!href || href.endsWith("/")) continue;
+        const abs = new URL(href, baseUrl).href;
+        if (!hasImageExtension(abs)) continue;
+        list.push(abs);
+      }
+      return dedupeList(list);
+    } catch {
+      return [];
+    }
+  }
+
+  async function discoverImageSources(){
+    const fromManifest = await listImagesFromManifest();
+    if (fromManifest.length) return fromManifest;
+
+    const fromDirectory = await listImagesFromDirectory();
+    if (fromDirectory.length) return fromDirectory;
+
+    console.warn("[Photo Wall] Auto-scan images/ not available, using fallback list.");
+    return IMAGE_FILE_FALLBACK.map((name) => IMAGE_BASE + name);
+  }
+
+  async function loadImages(){
+    images.length = 0;
+    const sources = await discoverImageSources();
+    if (!sources.length) return;
+
+    await Promise.all(sources.map((src) => new Promise((resolve) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.onload = () => {
+        img.__fileName = getFileNameFromPath(src);
+        images.push(img);
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = src;
+    })));
+  }
+
+  function makeSprite(img){
+    const size = rand(52, 112);            // card size
+    const speed = rand(0.58, 1.3);
+    return {
+      img,
+      x: Math.random()*W,
+      y: Math.random()*H,
+      vx: rand(-0.55, 0.55) * speed,
+      vy: rand(-0.35, 0.9) * speed,
+      s: size,
+      rot: rand(-0.4, 0.4),
+      vr: rand(-0.01, 0.01),
+      z: rand(0.15, 1.0),                 // depth
+      glow: rand(0.12, 0.28),
+      wobblePhase: rand(0, Math.PI * 2),
+      wobbleSpeed: rand(0.8, 1.8),
+      wobbleAmp: rand(8, 30),
+      flowSeed: rand(0, Math.PI * 2),
+      burstSeed: rand(0, Math.PI * 2),
+      flowDriftX: rand(-0.24, 0.24),
+      flowDriftY: rand(-0.16, 0.16),
+      x3: rand(-W * 1.15, W * 1.15),
+      y3: rand(-H * 0.85, H * 0.85),
+      z3: rand(740, 3100),
+      vx3: rand(-0.55, 0.55) * speed,
+      vy3: rand(-0.45, 0.45) * speed,
+      vz3: -rand(2.8, 8.2) * speed,
+      laneX3: rand(-W * 0.9, W * 0.9),
+      laneY3: rand(-H * 0.56, H * 0.56),
+      laneDrift3: rand(0.3, 1.2) * (Math.random() < 0.5 ? -1 : 1),
+      depthBias: rand(0.75, 1.4),
+      tilt3: rand(-0.32, 0.32),
+      hidden3D: false,
+      drawDepth: 99999,
+      renderScale: 1,
+    };
+  }
+
+  function initSprites(){
+    sprites.length = 0;
+    const count = clamp(Math.floor((W*H)/23000), 22, 75);
+    if (images.length === 0) return;
+
+    for (let i=0;i<count;i++){
+      const img = images[i % images.length];
+      sprites.push(makeSprite(img));
+    }
+    sprites.sort((a,b) => a.z - b.z);
+  }
+
+  function resetSprite3D(sp){
+    sp.x3 = rand(-W * 1.2, W * 1.2);
+    sp.y3 = rand(-H * 0.9, H * 0.9);
+    sp.z3 = rand(CAMERA.far * 0.62, CAMERA.far * 0.98);
+    sp.vx3 = rand(-0.55, 0.55);
+    sp.vy3 = rand(-0.45, 0.45);
+    sp.vz3 = -rand(2.2, 8.5);
+    sp.laneX3 = rand(-W * 0.92, W * 0.92);
+    sp.laneY3 = rand(-H * 0.56, H * 0.56);
+    sp.laneDrift3 = rand(0.28, 1.25) * (Math.random() < 0.5 ? -1 : 1);
+    sp.hidden3D = false;
+    sp.drawDepth = sp.z3;
+  }
+
+  function roundRect(ctx, x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  function spriteFrame(sp){
+    const base = sp.s * (0.65 + 0.55 * sp.z);
+    const pulse = 1 + Math.sin(sp.wobblePhase) * (0.035 + sp.z * 0.04);
+    const size = clamp(base * pulse * (sp.renderScale || 1), 30, 260);
+    return {
+      w: size,
+      h: size,
+      r: Math.max(10, size * 0.18)
+    };
+  }
+
+  function drawSprite(ctx, sp){
+    const frame = spriteFrame(sp);
+    const x = sp.x;
+    const y = sp.y;
+
+    // shadow/glow
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(sp.rot);
+    ctx.globalAlpha = 0.9;
+
+    // glow
+    ctx.shadowBlur = 30;
+    ctx.shadowColor = `rgba(160,200,255,${sp.glow})`;
+
+    // glass border
+    const w = frame.w;
+    const h = frame.h;
+    const r = frame.r;
+    roundRect(ctx, -w/2, -h/2, w, h, r);
+    ctx.fillStyle = "rgba(255,255,255,0.09)";
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.17)";
+    ctx.stroke();
+
+    // image clipped
+    ctx.save();
+    roundRect(ctx, -w/2+2, -h/2+2, w-4, h-4, r-2);
+    ctx.clip();
+
+    // cover fit
+    const iw = sp.img.naturalWidth || sp.img.width;
+    const ih = sp.img.naturalHeight || sp.img.height;
+    const scale = Math.max((w-4)/iw, (h-4)/ih);
+    const dw = iw*scale, dh = ih*scale;
+    ctx.drawImage(sp.img, -dw/2, -dh/2, dw, dh);
+
+    // subtle vignette
+    const vg = ctx.createRadialGradient(0,0, w*0.1, 0,0, w*0.75);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.2)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(-w/2, -h/2, w, h);
+
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function pointInSprite(sp, px, py){
+    if (sp.hidden3D) return false;
+    const frame = spriteFrame(sp);
+    const dx = px - sp.x;
+    const dy = py - sp.y;
+    const c = Math.cos(-sp.rot);
+    const s = Math.sin(-sp.rot);
+    const localX = dx * c - dy * s;
+    const localY = dx * s + dy * c;
+    return Math.abs(localX) <= frame.w / 2 && Math.abs(localY) <= frame.h / 2;
+  }
+
+  function findSpriteAt(x, y){
+    for (let i=sprites.length - 1; i>=0; i--){
+      const sp = sprites[i];
+      if (pointInSprite(sp, x, y)) return sp;
+    }
+    return null;
+  }
+
+  function setCanvasCursor(x, y){
+    if (previewOpen) {
+      fx.style.cursor = "default";
+      return;
+    }
+    fx.style.cursor = findSpriteAt(x, y) ? "zoom-in" : "default";
+  }
+
+  function openPreviewDialog(sp){
+    if (!sp || !sp.img) return;
+    previewImage.src = sp.img.currentSrc || sp.img.src;
+    const fileName = sp.img.__fileName || "image";
+    previewMeta.textContent = `Preview: ${fileName}`;
+    preview.classList.add("open");
+    preview.setAttribute("aria-hidden", "false");
+    previewOpen = true;
+    fx.style.cursor = "default";
+  }
+
+  function closePreviewDialog(){
+    if (!previewOpen) return;
+    preview.classList.remove("open");
+    preview.setAttribute("aria-hidden", "true");
+    previewOpen = false;
+    previewImage.removeAttribute("src");
+    setCanvasCursor(mouseX, mouseY);
+  }
+
+  function spawnShockwave(x, y, power = 1){
+    shockwaves.push({
+      x, y, power,
+      r: 0,
+      v: 620 * power,
+      age: 0,
+      life: 0.68 + power * 0.08
+    });
+  }
+
+  function updateShockwaves(dt){
+    for (let i=shockwaves.length-1; i>=0; i--){
+      const sw = shockwaves[i];
+      sw.age += dt;
+      sw.r += sw.v * dt;
+      sw.v *= 0.95;
+      if (sw.age > sw.life) shockwaves.splice(i, 1);
+    }
+  }
+
+  function drawShockwaves(ctx){
+    for (const sw of shockwaves){
+      const t = sw.age / sw.life;
+      const alpha = (1 - t) * (0.18 + sw.power * 0.12);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 1.5 + (1 - t) * 2.4;
+      ctx.strokeStyle = "rgba(172,214,255,0.85)";
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = "rgba(132,190,255,0.45)";
+      ctx.beginPath();
+      ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function applyVortexFlow(sp, dt, nowMs){
+    const t = nowMs * 0.001;
+    const flowA = Math.sin(sp.y * 0.0105 + t * (0.84 + sp.wobbleSpeed * 0.2) + sp.flowSeed * 3.1);
+    const flowB = Math.cos(sp.x * 0.0082 - t * (1.03 + sp.wobbleSpeed * 0.18) + sp.flowSeed * 2.3);
+    const flowC = Math.sin((sp.x + sp.y) * 0.0051 + t * 0.56 + sp.flowSeed);
+
+    const windX = (mouseN.x - 0.5) * 1.25 + Math.sin(t * 0.39) * 0.5;
+    const windY = (mouseN.y - 0.5) * 0.92 + Math.cos(t * 0.31) * 0.34;
+    const burst = 1 + Math.max(0, Math.sin(t * 2.4 + sp.burstSeed)) * 0.32 + (isDown ? 1.15 : 0);
+
+    const ax = (flowA * 0.094 + flowB * 0.066 + windX * 0.072 + sp.flowDriftX * 0.19) * burst;
+    const ay = (flowB * 0.074 - flowC * 0.086 + windY * 0.062 + sp.flowDriftY * 0.17) * burst;
+    sp.vx += ax * dt * 60;
+    sp.vy += ay * dt * 60;
+    sp.vr += (flowA - flowB) * 0.00018 * burst;
+  }
+
+  function applyShockwaveForces(sp){
+    for (const sw of shockwaves){
+      const dx = sp.x - sw.x;
+      const dy = sp.y - sw.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) + 0.0001;
+      const band = 90 + sw.power * 34;
+      const delta = Math.abs(dist - sw.r);
+      if (delta > band) continue;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const wave = 1 - (delta / band);
+      const fade = 1 - (sw.age / sw.life);
+      const impulse = wave * fade * (0.75 + sw.power * 0.65) * (0.6 + sp.z);
+      sp.vx += nx * impulse * 0.52;
+      sp.vy += ny * impulse * 0.52;
+      sp.vr += impulse * 0.0012 * (Math.random() - 0.5);
+    }
+  }
+
+  function projectPoint3D(x, y, z, yaw, pitch){
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    let rx = x * cy - z * sy;
+    let rz = x * sy + z * cy;
+
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const ry = y * cp - rz * sp;
+    rz = y * sp + rz * cp;
+
+    const inRange = rz > CAMERA.near && rz < CAMERA.far;
+    const scale = CAMERA.fov / (CAMERA.fov + Math.max(1, rz));
+    return {
+      inRange,
+      rz,
+      scale,
+      sx: W * 0.5 + rx * scale,
+      sy: H * 0.5 + ry * scale
+    };
+  }
+
+  function applyShockwaveForces3D(sp, probe){
+    if (!probe.inRange) return;
+    const invScale = 1 / Math.max(0.22, probe.scale);
+    for (const sw of shockwaves){
+      const dx = probe.sx - sw.x;
+      const dy = probe.sy - sw.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) + 0.0001;
+      const band = 88 + sw.power * 34;
+      const delta = Math.abs(dist - sw.r);
+      if (delta > band) continue;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const wave = 1 - (delta / band);
+      const fade = 1 - (sw.age / sw.life);
+      const impulse = wave * fade * (0.78 + sw.power * 0.66);
+      sp.vx3 += nx * impulse * 0.03 * invScale;
+      sp.vy3 += ny * impulse * 0.028 * invScale;
+      sp.vz3 += impulse * 0.016;
+      sp.vr += impulse * 0.00065 * (Math.random() - 0.5);
+    }
+  }
+
+  function updateSprite3D(sp, dt, now, yaw, pitch){
+    const t = now * 0.001;
+    const driftX = (mouseN.x - 0.5) * 290;
+    const driftY = (mouseN.y - 0.5) * 200;
+    const waveX = Math.sin(t * (0.82 + sp.wobbleSpeed * 0.28) + sp.flowSeed + sp.z3 * 0.0024) * 170;
+    const waveY = Math.cos(t * (0.74 + sp.wobbleSpeed * 0.2) + sp.flowSeed * 1.5 + sp.z3 * 0.0018) * 122;
+    const targetX = sp.laneX3 + driftX + waveX;
+    const targetY = sp.laneY3 + driftY + waveY;
+
+    sp.vx3 += (targetX - sp.x3) * (isDown ? 0.00145 : 0.00102) * dt * 60;
+    sp.vy3 += (targetY - sp.y3) * (isDown ? 0.00135 : 0.00094) * dt * 60;
+
+    const forward = (6.6 + sp.depthBias * 7.4) * (isDown ? 1.85 : 1.0);
+    sp.vz3 -= forward * dt;
+    if (sp.vz3 > -2.6) sp.vz3 = -2.6;
+    if (sp.vz3 < -46) sp.vz3 = -46;
+
+    const probe = projectPoint3D(sp.x3, sp.y3, sp.z3, yaw, pitch);
+    if (probe.inRange){
+      const dx = probe.sx - mouseX;
+      const dy = probe.sy - mouseY;
+      const d2 = dx*dx + dy*dy;
+      const radius = 220 * (0.62 + sp.z);
+      if (d2 < radius * radius){
+        const d = Math.sqrt(d2) + 0.0001;
+        const nx = dx / d, ny = dy / d;
+        const tx = -ny, ty = nx;
+        const push = (1 - d / radius) * (isDown ? 2.2 : 0.86) * (0.62 + sp.z);
+        const invScale = 1 / Math.max(0.22, probe.scale);
+        sp.vx3 += (nx * push * 0.035 + tx * push * (isDown ? 0.019 : 0.009)) * invScale;
+        sp.vy3 += (ny * push * 0.033 + ty * push * (isDown ? 0.019 : 0.009)) * invScale;
+        sp.vz3 -= push * 0.03;
+      }
+    }
+    applyShockwaveForces3D(sp, probe);
+
+    const damp = isDown ? 0.968 : 0.976;
+    sp.vx3 *= damp;
+    sp.vy3 *= damp;
+    sp.vz3 *= isDown ? 0.99 : 0.995;
+    sp.vr *= 0.988;
+
+    sp.x3 += sp.vx3 * 60 * dt;
+    sp.y3 += sp.vy3 * 60 * dt;
+    sp.z3 += sp.vz3 * 60 * dt;
+    sp.wobblePhase += sp.wobbleSpeed * dt * (isDown ? 3.45 : 2.55);
+    sp.rot += sp.vr * 60 * dt + sp.tilt3 * 0.0024 + Math.sin(t + sp.flowSeed) * 0.0032;
+
+    // recycle card once it flies past camera
+    if (sp.z3 < CAMERA.near + 18){
+      resetSprite3D(sp);
+    }
+    // occasionally hop lane to avoid repetitive paths
+    if (Math.random() < 0.0016){
+      sp.laneX3 = rand(-W * 0.95, W * 0.95);
+      sp.laneY3 = rand(-H * 0.58, H * 0.58);
+    }
+
+    const p = projectPoint3D(sp.x3, sp.y3, sp.z3, yaw, pitch);
+    if (!p.inRange || p.scale < 0.09 || p.sx < -420 || p.sx > W + 420 || p.sy < -340 || p.sy > H + 340){
+      if (sp.z3 < CAMERA.near + 120 || sp.z3 > CAMERA.far - 30) {
+        resetSprite3D(sp);
+      }
+      sp.hidden3D = true;
+      sp.drawDepth = 99999;
+      return;
+    }
+
+    const depthNorm = 1 - clamp((p.rz - CAMERA.near) / (CAMERA.far - CAMERA.near), 0, 1);
+    sp.hidden3D = false;
+    sp.drawDepth = p.rz;
+    sp.x = p.sx;
+    sp.y = p.sy;
+    sp.z = 0.16 + depthNorm * 0.84;
+    sp.renderScale = clamp(p.scale * 2.45, 0.32, 2.2);
+    sp.glow = 0.12 + depthNorm * 0.34 + (isDown ? 0.06 : 0);
+  }
+
+  function hasAudioExtension(path){
+    const clean = path.split("#")[0].split("?")[0].toLowerCase();
+    for (const ext of AUDIO_EXTENSIONS){
+      if (clean.endsWith(ext)) return true;
+    }
+    return false;
+  }
+
+  async function listAudioFromManifest(){
+    try {
+      const res = await fetch(AUDIO_BASE + "manifest.json", {cache: "no-store"});
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data)) return [];
+      const out = [];
+      const seen = new Set();
+      for (const item of data){
+        if (typeof item !== "string") continue;
+        const raw = item.trim();
+        if (!raw) continue;
+        let src = raw;
+        if (!/^(https?:)?\/\//i.test(src) && !src.startsWith("data:") && !src.startsWith("blob:")){
+          if (!src.startsWith("/") && !src.startsWith("./") && !src.startsWith("../") && !src.startsWith(AUDIO_BASE)) {
+            src = AUDIO_BASE + src;
+          }
+        }
+        if (!hasAudioExtension(src)) continue;
+        const key = src.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(src);
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  async function listAudioFromDirectory(){
+    try {
+      const res = await fetch(AUDIO_BASE, {cache: "no-store"});
+      if (!res.ok) return [];
+      const type = (res.headers.get("content-type") || "").toLowerCase();
+      if (!type.includes("text/html")) return [];
+
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const baseUrl = res.url || window.location.href;
+      const out = [];
+      const seen = new Set();
+      for (const link of doc.querySelectorAll("a[href]")){
+        const href = (link.getAttribute("href") || "").trim();
+        if (!href || href.endsWith("/")) continue;
+        const abs = new URL(href, baseUrl).href;
+        if (!hasAudioExtension(abs)) continue;
+        const key = abs.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(abs);
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  async function discoverAudioTrack(){
+    if (musicTrackSrc) return musicTrackSrc;
+
+    const fromManifest = await listAudioFromManifest();
+    if (fromManifest.length){
+      musicTrackSrc = fromManifest[0];
+      return musicTrackSrc;
+    }
+
+    const fromDirectory = await listAudioFromDirectory();
+    if (fromDirectory.length){
+      musicTrackSrc = fromDirectory[0];
+      return musicTrackSrc;
+    }
+
+    musicTrackSrc = AUDIO_FILE_FALLBACK;
+    return musicTrackSrc;
+  }
+
+  function fadeMediaVolume(el, to, durationMs, after){
+    if (!el) return;
+    const from = el.volume;
+    const start = performance.now();
+    const dur = Math.max(1, durationMs || 1);
+    function step(now){
+      const p = clamp((now - start) / dur, 0, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.volume = clamp(from + (to - from) * eased, 0, 1);
+      if (p < 1) requestAnimationFrame(step);
+      else if (after) after();
+    }
+    requestAnimationFrame(step);
+  }
+
+  async function ensureMusicElement(){
+    if (musicEl) return true;
+    const src = await discoverAudioTrack();
+    if (!src) return false;
+
+    const media = new Audio(src);
+    media.loop = true;
+    media.preload = "auto";
+    media.volume = 0;
+    media.playsInline = true;
+    media.crossOrigin = "anonymous";
+    musicEl = media;
+    btnMusic.title = `Track: ${getFileNameFromPath(src)}`;
+    return true;
+  }
+
+  function makeNoiseBuffer(ctx){
+    const len = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i=0; i<len; i++){
+      data[i] = (Math.random() * 2 - 1) * 0.28;
+    }
+    return buffer;
+  }
+
+  function setAmbientChord(initial = false){
+    if (!audioCtx || musicFreqNodes.length === 0) return;
+    const chords = [
+      [130.81, 155.56, 196.00], // C minor feel
+      [116.54, 146.83, 174.61], // Bb major feel
+      [123.47, 146.83, 185.00], // B mode
+      [110.00, 138.59, 174.61], // A minor feel
+    ];
+
+    const chordIndex = initial ? 0 : (Math.floor(Math.random() * chords.length));
+    const chord = chords[chordIndex];
+    const t = audioCtx.currentTime;
+    for (const node of musicFreqNodes){
+      const target = chord[node.tone] * node.ratio;
+      node.param.cancelScheduledValues(t);
+      node.param.setTargetAtTime(target, t, initial ? 0.01 : 2.4);
+    }
+  }
+
+  async function ensureMusicGraph(){
+    if (audioCtx && musicMaster) return true;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx){
+      return false;
+    }
+
+    audioCtx = new Ctx();
+    const padLow = audioCtx.createBiquadFilter();
+    padLow.type = "lowpass";
+    padLow.frequency.value = 980;
+    padLow.Q.value = 0.45;
+
+    const padHigh = audioCtx.createBiquadFilter();
+    padHigh.type = "highpass";
+    padHigh.frequency.value = 70;
+    padHigh.Q.value = 0.4;
+
+    musicPadGain = audioCtx.createGain();
+    musicPadGain.gain.value = 0.42;
+
+    musicMaster = audioCtx.createGain();
+    musicMaster.gain.value = 0;
+
+    padLow.connect(padHigh);
+    padHigh.connect(musicPadGain);
+    musicPadGain.connect(musicMaster);
+    musicMaster.connect(audioCtx.destination);
+
+    const voices = [
+      {type: "sine", ratio: 0.5, tone: 0, level: 0.32},
+      {type: "triangle", ratio: 0.5, tone: 1, level: 0.22},
+      {type: "sine", ratio: 0.5, tone: 2, level: 0.18},
+      {type: "triangle", ratio: 1.0, tone: 0, level: 0.08},
+    ];
+
+    for (const v of voices){
+      const osc = audioCtx.createOscillator();
+      osc.type = v.type;
+      osc.frequency.value = 110;
+      osc.detune.value = rand(-8, 8);
+
+      const gain = audioCtx.createGain();
+      gain.gain.value = v.level;
+      osc.connect(gain);
+      gain.connect(padLow);
+      osc.start();
+
+      musicFreqNodes.push({param: osc.frequency, tone: v.tone, ratio: v.ratio});
+    }
+
+    musicNoiseSource = audioCtx.createBufferSource();
+    musicNoiseSource.buffer = makeNoiseBuffer(audioCtx);
+    musicNoiseSource.loop = true;
+    const noiseLow = audioCtx.createBiquadFilter();
+    noiseLow.type = "lowpass";
+    noiseLow.frequency.value = 640;
+    const noiseHigh = audioCtx.createBiquadFilter();
+    noiseHigh.type = "highpass";
+    noiseHigh.frequency.value = 180;
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.value = 0.011;
+    musicNoiseSource.connect(noiseLow);
+    noiseLow.connect(noiseHigh);
+    noiseHigh.connect(noiseGain);
+    noiseGain.connect(musicMaster);
+    musicNoiseSource.start();
+
+    musicLfo = audioCtx.createOscillator();
+    musicLfo.type = "sine";
+    musicLfo.frequency.value = 0.085;
+    musicLfoGain = audioCtx.createGain();
+    musicLfoGain.gain.value = 0.09;
+    musicLfo.connect(musicLfoGain);
+    musicLfoGain.connect(musicPadGain.gain);
+    musicLfo.start();
+
+    musicStepTimer = 0;
+    setAmbientChord(true);
+    return true;
+  }
+
+  async function setMusic(on){
+    musicOn = on;
+    btnMusic.textContent = `Music: ${on ? "ON" : "OFF"}`;
+
+    if (!on){
+      if (musicEl){
+        const localEl = musicEl;
+        fadeMediaVolume(localEl, 0, 450, () => {
+          if (!musicOn) localEl.pause();
+        });
+      }
+      if (audioCtx && musicMaster){
+        const t = audioCtx.currentTime;
+        musicMaster.gain.cancelScheduledValues(t);
+        musicMaster.gain.setTargetAtTime(0, t, 0.4);
+      }
+      return;
+    }
+
+    const fileReady = await ensureMusicElement();
+    if (fileReady && musicEl){
+      try {
+        if (musicEl.paused) await musicEl.play();
+        fadeMediaVolume(musicEl, 0.24, 900);
+        if (audioCtx && musicMaster){
+          const t = audioCtx.currentTime;
+          musicMaster.gain.cancelScheduledValues(t);
+          musicMaster.gain.setTargetAtTime(0, t, 0.35);
+        }
+        return;
+      } catch {
+        // fallback to synth
+      }
+    }
+
+    const ok = await ensureMusicGraph();
+    if (!ok){
+      musicOn = false;
+      btnMusic.textContent = "Music: N/A";
+      btnMusic.disabled = true;
+      return;
+    }
+    if (audioCtx.state === "suspended"){
+      try { await audioCtx.resume(); } catch {}
+    }
+    const t = audioCtx.currentTime;
+    musicMaster.gain.cancelScheduledValues(t);
+    musicMaster.gain.setValueAtTime(musicMaster.gain.value, t);
+    musicMaster.gain.linearRampToValueAtTime(0.15, t + 1.2);
+  }
+
+  function updateMusic(dt){
+    if (!musicOn) return;
+    if (!audioCtx || musicFreqNodes.length === 0) return;
+    musicStepTimer += dt;
+    if (musicStepTimer > 12){
+      musicStepTimer = 0;
+      setAmbientChord(false);
+    }
+  }
+
+  function setMode(is3D){
+    mode3D = is3D;
+    btnMode.textContent = `Mode: ${is3D ? "3D" : "Flux"}`;
+    initSprites();
+    shockwaves.length = 0;
+  }
+
+  // =========================
+  // Emoji hearts particles
+  // =========================
+  let heartsOn = true;
+  const emojis = [];
+
+  function spawnEmoji(x, y){
+    const e = EMOJIS[Math.floor(Math.random()*EMOJIS.length)];
+    emojis.push({
+      e,
+      t: 0,
+      life: rand(1.1, 2.1),
+      x, y,
+      vx: rand(-0.46, 0.46),
+      vy: rand(-1.2, -0.42),
+      rot: rand(-0.6, 0.6),
+      vr: rand(-0.03, 0.03),
+      size: rand(14, 28),
+      alpha: 1
+    });
+  }
+
+  function updateEmojis(dt){
+    for (let i=emojis.length-1;i>=0;i--){
+      const p = emojis[i];
+      p.t += dt;
+      p.x += p.vx * 60 * dt;
+      p.y += p.vy * 60 * dt;
+      p.rot += p.vr * 60 * dt;
+      p.alpha = 1 - (p.t / p.life);
+      if (p.t > p.life) emojis.splice(i,1);
+    }
+  }
+
+  function drawEmojis(ctx){
+    for (const p of emojis){
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.font = `${p.size}px ui-sans-serif, system-ui`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = "rgba(255,255,255,0.18)";
+      ctx.fillText(p.e ?? "", 0, 0);
+      ctx.restore();
+    }
+  }
+
+  // =========================
+  // Interaction: mouse force
+  // =========================
+  let mouseX = W/2, mouseY = H/2;
+  let mouseN = {x:0.5,y:0.5};
+  let isDown = false;
+
+  function onMove(e){
+    const x = e.clientX ?? (e.touches && e.touches[0].clientX) ?? W/2;
+    const y = e.clientY ?? (e.touches && e.touches[0].clientY) ?? H/2;
+    mouseX = x; mouseY = y;
+    mouseN.x = clamp(x / W, 0, 1);
+    mouseN.y = clamp(y / H, 0, 1);
+    setCanvasCursor(x, y);
+
+    if (heartsOn && (Math.random() < 0.35)) spawnEmoji(x, y);
+  }
+  function onDown(e){
+    isDown = true;
+    const x = e.clientX ?? (e.touches && e.touches[0].clientX) ?? mouseX;
+    const y = e.clientY ?? (e.touches && e.touches[0].clientY) ?? mouseY;
+    mouseX = x; mouseY = y;
+    mouseN.x = clamp(x / W, 0, 1);
+    mouseN.y = clamp(y / H, 0, 1);
+    spawnShockwave(x, y, 1.14);
+    if (heartsOn){
+      for (let i=0; i<4; i++) spawnEmoji(x + rand(-10, 10), y + rand(-10, 10));
+    }
+  }
+  function onUp(){ isDown = false; }
+  window.addEventListener("mousemove", onMove, {passive:true});
+  window.addEventListener("touchmove", onMove, {passive:true});
+  window.addEventListener("mousedown", onDown);
+  window.addEventListener("mouseup", onUp);
+  window.addEventListener("touchstart", onDown, {passive:true});
+  window.addEventListener("touchend", onUp, {passive:true});
+  fx.addEventListener("click", (e) => {
+    if (previewOpen) return;
+    const hit = findSpriteAt(e.clientX, e.clientY);
+    if (hit) openPreviewDialog(hit);
+  });
+
+  function applyMouseForce(sp){
+    // local push field around pointer
+    const dx = sp.x - mouseX;
+    const dy = sp.y - mouseY;
+    const d2 = dx*dx + dy*dy;
+    const radius = 220 * (0.68 + sp.z);
+    if (d2 < radius*radius){
+      const d = Math.sqrt(d2) + 0.0001;
+      const nx = dx/d, ny = dy/d;
+      const tx = -ny, ty = nx;
+      const push = (1 - d/radius) * (isDown ? 2.0 : 0.86) * (0.68 + sp.z);
+      const tangent = isDown ? 0.26 : 0.12;
+      sp.vx += nx * push * 0.48 + tx * push * tangent;
+      sp.vy += ny * push * 0.48 + ty * push * tangent;
+      sp.vr += push * 0.0009 * (Math.random() - 0.5);
+    }
+  }
+
+  // =========================
+  // Main loop
+  // =========================
+  let last = performance.now();
+  function tick(now){
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    updateMusic(dt);
+
+    drawBg(now, mouseN.x, mouseN.y);
+
+    // clear fx
+    fctx.clearRect(0,0,W,H);
+    updateShockwaves(dt);
+
+    // update/draw sprites
+    if (mode3D){
+      const yaw = (mouseN.x - 0.5) * 0.34;
+      const pitch = (0.5 - mouseN.y) * 0.2;
+      for (const sp of sprites){
+        updateSprite3D(sp, dt, now, yaw, pitch);
+      }
+      sprites.sort((a,b) => (b.drawDepth ?? 99999) - (a.drawDepth ?? 99999));
+      for (const sp of sprites){
+        if (sp.hidden3D) continue;
+        drawSprite(fctx, sp);
+      }
+    } else {
+      for (const sp of sprites){
+        sp.hidden3D = false;
+        sp.renderScale = 1;
+        applyVortexFlow(sp, dt, now);
+        applyMouseForce(sp);
+        applyShockwaveForces(sp);
+
+        sp.wobblePhase += sp.wobbleSpeed * dt * 2.4;
+        const t = now * 0.001;
+        const microX = Math.sin(t * (1.28 + sp.wobbleSpeed * 0.35) + sp.flowSeed) * sp.wobbleAmp * 0.18 * dt;
+        const microY = Math.cos(t * (1.12 + sp.wobbleSpeed * 0.26) + sp.flowSeed * 1.3) * sp.wobbleAmp * 0.2 * dt;
+        sp.rot += sp.vr * 60 * dt + Math.sin(sp.wobblePhase) * 0.0032;
+        sp.x += (sp.vx + sp.flowDriftX) * 60 * dt + microX;
+        sp.y += (sp.vy + sp.flowDriftY) * 60 * dt + microY;
+
+        // gentle drift + bounds wrap
+        sp.vx *= 0.982;
+        sp.vy *= 0.982;
+        sp.vr *= 0.992;
+
+        const maxSpeed = 3.8 + sp.z * 2.6;
+        const vel = Math.sqrt(sp.vx*sp.vx + sp.vy*sp.vy);
+        if (vel > maxSpeed){
+          const k = maxSpeed / vel;
+          sp.vx *= k;
+          sp.vy *= k;
+        }
+
+        if (sp.x < -200) sp.x = W + 200;
+        if (sp.x > W + 200) sp.x = -200;
+        if (sp.y < -240) sp.y = H + 240;
+        if (sp.y > H + 240) sp.y = -240;
+
+        drawSprite(fctx, sp);
+      }
+    }
+    drawShockwaves(fctx);
+
+    // emojis
+    if (heartsOn){
+      if (Math.random() < (isDown ? 0.2 : 0.08)) spawnEmoji(rand(0,W), rand(0,H*0.85));
+    }
+    updateEmojis(dt);
+    drawEmojis(fctx);
+
+    requestAnimationFrame(tick);
+  }
+
+  // =========================
+  // Controls
+  // =========================
+  const btnHearts = document.getElementById("toggleHearts");
+  const btnShuffle = document.getElementById("shuffle");
+
+  function setHearts(on){
+    heartsOn = on;
+    const icon = on ? ICON_HEART_ON : ICON_HEART_OFF;
+    btnHearts.textContent = `${icon} Hearts: ${on ? "ON" : "OFF"}`;
+  }
+  setHearts(heartsOn);
+  setMusic(musicOn);
+  setMode(mode3D);
+  btnHearts.addEventListener("click", () => setHearts(!heartsOn));
+  btnMusic.addEventListener("click", () => setMusic(!musicOn));
+  btnMode.addEventListener("click", () => setMode(!mode3D));
+  btnShuffle.addEventListener("click", () => {
+    closePreviewDialog();
+    initStars();
+    initSprites();
+    shockwaves.length = 0;
+    emojis.length = 0;
+  });
+  closePreview.addEventListener("click", closePreviewDialog);
+  preview.addEventListener("click", (e) => {
+    if (e.target === preview || e.target.hasAttribute("data-close-preview")) {
+      closePreviewDialog();
+    }
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closePreviewDialog();
+      return;
+    }
+    if (e.code === "Space") { e.preventDefault(); setHearts(!heartsOn); }
+    if (e.key.toLowerCase() === "n") { setMusic(!musicOn); }
+    if (e.key.toLowerCase() === "m") { setMode(!mode3D); }
+    if (e.key.toLowerCase() === "r") { initStars(); initSprites(); shockwaves.length = 0; emojis.length = 0; }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden){
+      if (musicEl && !musicEl.paused) musicEl.pause();
+      if (audioCtx && audioCtx.state === "running") audioCtx.suspend().catch(() => {});
+      return;
+    }
+    if (!musicOn) return;
+    if (musicEl && musicEl.paused) musicEl.play().catch(() => {});
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  });
+
+  // =========================
+  // Boot
+  // =========================
+  loadImages().then(() => {
+    assetsReady = true;
+    initSprites();
+    requestAnimationFrame(tick);
+  });
+
+})();
+</script>
+</body>
+</html>
+
