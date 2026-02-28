@@ -97,6 +97,58 @@
       color: rgba(255,255,255,.9);
       margin: 0 4px;
     }
+    .loading{
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 45;
+      background:
+        radial-gradient(65% 55% at 50% 35%, rgba(48,74,134,.42) 0%, rgba(10,13,25,.76) 58%, rgba(4,5,10,.92) 100%),
+        rgba(2,3,8,.72);
+      backdrop-filter: blur(10px);
+      transition: opacity .36s ease, visibility .36s ease;
+    }
+    .loading.hidden{
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .loading-card{
+      width: min(88vw, 420px);
+      padding: 18px 18px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,.2);
+      background: linear-gradient(165deg, rgba(255,255,255,.16), rgba(255,255,255,.06));
+      box-shadow: 0 24px 90px rgba(0,0,0,.5);
+      color: rgba(255,255,255,.9);
+      text-align: center;
+    }
+    .loading-spinner{
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 10px;
+      border-radius: 999px;
+      border: 3px solid rgba(255,255,255,.2);
+      border-top-color: rgba(171,214,255,.95);
+      animation: loading-spin .9s linear infinite;
+    }
+    .loading-title{
+      margin: 0 0 4px;
+      font-size: 16px;
+      letter-spacing: .2px;
+      font-weight: 700;
+    }
+    .loading-text{
+      margin: 0;
+      font-size: 12px;
+      color: rgba(255,255,255,.78);
+      line-height: 1.4;
+      min-height: 18px;
+    }
+    @keyframes loading-spin{
+      to { transform: rotate(360deg); }
+    }
     .preview{
       position: fixed;
       inset: 0;
@@ -200,6 +252,14 @@
 <body>
   <canvas id="bg"></canvas>
   <canvas id="fx"></canvas>
+  <div class="loading" id="loadingOverlay" aria-live="polite" aria-label="Loading">
+    <div class="loading-card">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p class="loading-title" id="loadingTitle">Vui lòng đợi Diện xíu...</p>
+      <p class="loading-text" id="loadingText">Đang khởi tạo tài nguyên ...</p>
+    </div>
+  </div>
+
   <div class="hint">
     Drag to steer flow &bull; Hold click for burst &bull; <kbd>M</kbd> mode &bull; <kbd>N</kbd> music &bull; <kbd>Click card</kbd> preview &bull; <kbd>Space</kbd> hearts &bull; <kbd>R</kbd> shuffle
   </div>
@@ -230,32 +290,32 @@
   // Config
   // =========================
   const IMAGE_FILE_FALLBACK = [
-    "29fc01acd89b1ac67a71f0e612f2dc3c.jpeg",
-    "3074383e64a40dace64715f1c31a0528.jpeg",
-    "36d0b2837de2d8f2bf312eb2e85e16aa.jpeg",
-    "839f24cb0b4de213c1eb7a918e5506af.jpeg",
-    "844ec3c27cad21eb4c2692e4c136866d.jpeg",
-    "92e5b33e2bffc727daa58513005ccffa.jpeg",
-    "99077916e03a4e5cbfc1df5c2f54691e.jpeg",
-    "a0cc90cbdacc0f324708617031577410.jpeg",
-    "att.1P-mCZHPTxCzzJQjtb-gZP_irxy_DY5EAoQQTILK6zw.jpg",
-    "att.911ANFli7z6C-byS7c6Le88iv3UjXhBdrKhM60WG31s.jpg",
-    "att.bHE1t233rlgVsrw0F52bMLKFzn4-oNBQh_di8Ze-WRE.jpg",
-    "att.cCD4PBQkvCmkw4olRAqq8Z4WqkpKPMhIZrPAiUFQSYI.jpg",
-    "att.gUI4dTDbhNQrAKZoNUEWSrCga0zOPxQJhyTHpJH-Rco.jpg",
-    "att.LNfQxyIhM_NukY7ex__qMg4J1x5DMeoxTIHyDcXoSU8.jpg",
-    "att.utv02Ez3Js_PFgVBNBgDVVpEY2XScENREvMQ8vzn7ww.jpg",
-    "att.v4smV0IKKMnRQVGmNbQPO1cpD69PJrA291w9lcGCYrw.jpg",
-    "att.WF4zUraCaBhvsrsR8hlLXROSRgi4uLyZlCIAaCbxOTQ.jpg",
-    "bbc4dfef4e1a63879b36ce8a11709395.jpeg",
-    "ce960c22ca789b3de1a381881635b508.jpeg",
-    "dcb9c5d2c49e7b031d870c61bc9cb162.jpeg",
-    "IMG_1097.JPG",
-    "IMG_1102.JPG",
-    "IMG_1108.JPG",
-    "IMG_1111.JPG",
-    "IMG_1112.JPG",
-    "IMG_1114.JPG"
+    "29fc01acd89b1ac67a71f0e612f2dc3c.webp",
+    "3074383e64a40dace64715f1c31a0528.webp",
+    "36d0b2837de2d8f2bf312eb2e85e16aa.webp",
+    "839f24cb0b4de213c1eb7a918e5506af.webp",
+    "844ec3c27cad21eb4c2692e4c136866d.webp",
+    "92e5b33e2bffc727daa58513005ccffa.webp",
+    "99077916e03a4e5cbfc1df5c2f54691e.webp",
+    "a0cc90cbdacc0f324708617031577410.webp",
+    "att.1P-mCZHPTxCzzJQjtb-gZP_irxy_DY5EAoQQTILK6zw.webp",
+    "att.911ANFli7z6C-byS7c6Le88iv3UjXhBdrKhM60WG31s.webp",
+    "att.bHE1t233rlgVsrw0F52bMLKFzn4-oNBQh_di8Ze-WRE.webp",
+    "att.cCD4PBQkvCmkw4olRAqq8Z4WqkpKPMhIZrPAiUFQSYI.webp",
+    "att.gUI4dTDbhNQrAKZoNUEWSrCga0zOPxQJhyTHpJH-Rco.webp",
+    "att.LNfQxyIhM_NukY7ex__qMg4J1x5DMeoxTIHyDcXoSU8.webp",
+    "att.utv02Ez3Js_PFgVBNBgDVVpEY2XScENREvMQ8vzn7ww.webp",
+    "att.v4smV0IKKMnRQVGmNbQPO1cpD69PJrA291w9lcGCYrw.webp",
+    "att.WF4zUraCaBhvsrsR8hlLXROSRgi4uLyZlCIAaCbxOTQ.webp",
+    "bbc4dfef4e1a63879b36ce8a11709395.webp",
+    "ce960c22ca789b3de1a381881635b508.webp",
+    "dcb9c5d2c49e7b031d870c61bc9cb162.webp",
+    "IMG_1097.webp",
+    "IMG_1102.webp",
+    "IMG_1108.webp",
+    "IMG_1111.webp",
+    "IMG_1112.webp",
+    "IMG_1114.webp"
   ];
   const IMAGE_BASE = "images/";
   const IMAGE_EXTENSIONS = new Set([".jpg",".jpeg",".png",".webp",".gif",".avif",".bmp",".svg"]);
@@ -274,6 +334,7 @@
   const PHOTO_MOTION_SCALE = 0.8;
   const MIN_IMAGES_TO_RENDER = 12;
   const IMAGE_LOAD_BATCH_SIZE = 12;
+  const MUSIC_PRELOAD_TIMEOUT_MS = 14000;
 
   // =========================
   // Canvas setup
@@ -288,6 +349,9 @@
   const closePreview = document.getElementById("closePreview");
   const btnMusic = document.getElementById("toggleMusic");
   const btnMode = document.getElementById("toggleMode");
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  const loadingTitle = document.getElementById("loadingTitle");
+  const loadingText = document.getElementById("loadingText");
   let previewOpen = false;
   let mode3D = true;
   let musicOn = false;
@@ -301,6 +365,11 @@
   let musicLfo = null;
   let musicLfoGain = null;
   let musicStepTimer = 0;
+  let imagesReadyForView = false;
+  let audioReadyForView = false;
+  let loaderHidden = false;
+  let loaderImageStatus = "Images: preparing...";
+  let loaderAudioStatus = "Music: preparing...";
   const AUDIO_BASE = "audio/";
   const AUDIO_EXTENSIONS = new Set([".mp3",".wav",".ogg",".m4a",".aac",".flac",".webm"]);
   const AUDIO_FILE_FALLBACK = AUDIO_BASE + "music.mp3";
@@ -327,6 +396,30 @@
   }
   window.addEventListener("resize", resize, {passive:true});
   resize();
+  function renderLoadingStatus(){
+    if (!loadingText) return;
+    loadingText.textContent = loaderImageStatus + " | " + loaderAudioStatus;
+  }
+
+  function completeLoadingStep(type){
+    if (type === "images") imagesReadyForView = true;
+    if (type === "audio") audioReadyForView = true;
+
+    if (!imagesReadyForView || !audioReadyForView || loaderHidden) return;
+    loaderHidden = true;
+
+    if (loadingTitle) loadingTitle.textContent = "Sẵn sàng";
+    loaderImageStatus = "Images: ready";
+    if (!loaderAudioStatus.startsWith("Music:")) loaderAudioStatus = "Music: ready";
+    renderLoadingStatus();
+
+    setTimeout(() => {
+      if (loadingOverlay) loadingOverlay.classList.add("hidden");
+    }, 220);
+  }
+
+  renderLoadingStatus();
+
 
   // =========================
   // Starfield (bg canvas)
@@ -468,7 +561,7 @@
     return IMAGE_FILE_FALLBACK.map((name) => IMAGE_BASE + name);
   }
 
-  function loadImageSource(src, totalSources){
+  function loadImageSource(src, totalSources, onSettled){
     return new Promise((resolve) => {
       const img = new Image();
       img.decoding = "async";
@@ -484,21 +577,51 @@
           const slot = images.length % sprites.length;
           sprites[slot].img = img;
         }
+
+        if (typeof onSettled === "function") onSettled(true);
         resolve();
       };
-      img.onerror = () => resolve();
+      img.onerror = () => {
+        if (typeof onSettled === "function") onSettled(false);
+        resolve();
+      };
       img.src = src;
     });
   }
 
   async function loadImages(){
     images.length = 0;
-    const sources = await discoverImageSources();
-    if (!sources.length) return;
+    try {
+      const sources = await discoverImageSources();
+      if (!sources.length) {
+        loaderImageStatus = "Images: not found";
+        renderLoadingStatus();
+        return;
+      }
 
-    for (let i=0; i<sources.length; i += IMAGE_LOAD_BATCH_SIZE){
-      const batch = sources.slice(i, i + IMAGE_LOAD_BATCH_SIZE);
-      await Promise.all(batch.map((src) => loadImageSource(src, sources.length)));
+      let settled = 0;
+      const total = sources.length;
+      loaderImageStatus = "Images: 0/" + total;
+      renderLoadingStatus();
+
+      const onSettled = () => {
+        settled += 1;
+        loaderImageStatus = "Images: " + settled + "/" + total;
+        renderLoadingStatus();
+      };
+
+      for (let i=0; i<sources.length; i += IMAGE_LOAD_BATCH_SIZE){
+        const batch = sources.slice(i, i + IMAGE_LOAD_BATCH_SIZE);
+        await Promise.all(batch.map((src) => loadImageSource(src, sources.length, onSettled)));
+      }
+
+      loaderImageStatus = "Images: ready (" + images.length + "/" + total + ")";
+      renderLoadingStatus();
+    } catch {
+      loaderImageStatus = "Images: load failed";
+      renderLoadingStatus();
+    } finally {
+      completeLoadingStep("images");
     }
   }
 
@@ -994,8 +1117,73 @@
     media.playsInline = true;
     media.crossOrigin = "anonymous";
     musicEl = media;
-    btnMusic.title = `Track: ${getFileNameFromPath(src)}`;
+    btnMusic.title = "Track: " + getFileNameFromPath(src);
     return true;
+  }
+
+  function waitForMediaLoaded(media, timeoutMs = MUSIC_PRELOAD_TIMEOUT_MS){
+    return new Promise((resolve) => {
+      if (!media) {
+        resolve(false);
+        return;
+      }
+      if (media.readyState >= 3) {
+        resolve(true);
+        return;
+      }
+
+      let settled = false;
+      let timer = null;
+
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        media.removeEventListener("canplaythrough", onCanPlay);
+        media.removeEventListener("loadeddata", onLoadedData);
+        media.removeEventListener("error", onError);
+        if (timer) clearTimeout(timer);
+        resolve(ok);
+      };
+
+      const onCanPlay = () => finish(true);
+      const onLoadedData = () => finish(media.readyState >= 2);
+      const onError = () => finish(false);
+
+      media.addEventListener("canplaythrough", onCanPlay, {once: true});
+      media.addEventListener("loadeddata", onLoadedData, {once: true});
+      media.addEventListener("error", onError, {once: true});
+
+      timer = setTimeout(() => finish(media.readyState >= 2), timeoutMs);
+
+      try {
+        media.load();
+      } catch {
+        finish(false);
+      }
+    });
+  }
+
+  async function preloadMusicForBoot(){
+    try {
+      loaderAudioStatus = "Music: loading...";
+      renderLoadingStatus();
+
+      const found = await ensureMusicElement();
+      if (!found || !musicEl){
+        loaderAudioStatus = "Music: not found (skip)";
+        renderLoadingStatus();
+        return;
+      }
+
+      const ok = await waitForMediaLoaded(musicEl);
+      loaderAudioStatus = ok ? "Music: ready" : "Music: load issue (skip)";
+      renderLoadingStatus();
+    } catch {
+      loaderAudioStatus = "Music: load failed (skip)";
+      renderLoadingStatus();
+    } finally {
+      completeLoadingStep("audio");
+    }
   }
 
   function makeNoiseBuffer(ctx){
@@ -1419,10 +1607,13 @@
   // =========================
   // Boot
   // =========================
+  if (loadingTitle) loadingTitle.textContent = "Vui lòng đợi Diện xíu ...";
   requestAnimationFrame(tick);
-  loadImages().then(() => {
+  Promise.allSettled([loadImages(), preloadMusicForBoot()]).then(() => {
     assetsReady = true;
     if (!sprites.length) initSprites();
+    if (!imagesReadyForView) completeLoadingStep("images");
+    if (!audioReadyForView) completeLoadingStep("audio");
   });
 
 })();
